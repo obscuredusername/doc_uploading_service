@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Generate Document Links{% endblock %}
+{% block content %}
+  <h1>Document Collection Portal</h1>
+  <p class="sub">Enter a client's name and reference to generate their upload links.</p>
+
+  <div class="card">
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
+    <form method="post" action="/staff/generate">
+      <div class="row">
+        <div>
+          <label>Client name</label>
+          <input type="text" name="name" placeholder="John Smith" required>
+        </div>
+        <div>
+          <label>Reference number</label>
+          <input type="text" name="reference" placeholder="324901" required>
+        </div>
+      </div>
+      <button type="submit">Generate links</button>
+    </form>
+  </div>
+{% endblock %}

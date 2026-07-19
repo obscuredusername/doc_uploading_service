@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Upload {{ link.label if link else label }}{% endblock %}
+{% block content %}
+  {% if state == "live" %}
+    <h1>Upload {{ link.label }}</h1>
+    <p class="sub">Reference {{ link.reference }}</p>
+    <div class="card">
+      {% include "_upload_form.html" %}
+    </div>
+  {% elif state == "submitted" %}
+    <h1>{{ link.label }}</h1>
+    <div class="card">
+      <span class="badge submitted">Already submitted</span>
+      <p class="sub" style="margin-top:12px">This document has already been uploaded. The link is no longer active.</p>
+    </div>
+  {% elif state == "expired" %}
+    <h1>{{ link.label }}</h1>
+    <div class="card">
+      <span class="badge expired">Expired</span>
+      <p class="sub" style="margin-top:12px">This upload link has expired. Please request a new one.</p>
+    </div>
+  {% else %}
+    <h1>Link not found</h1>
+    <div class="card">
+      <p class="sub">This upload link is invalid. Check the address, or request a new link.</p>
+    </div>
+  {% endif %}
+{% endblock %}

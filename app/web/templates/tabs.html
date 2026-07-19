@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Upload Documents — {{ reference }}{% endblock %}
+{% block content %}
+  <h1>{{ name }} <span class="sub" style="font-size:1rem">· {{ reference }}</span></h1>
+  <p class="sub">{{ links|length }} document links generated. Upload here, or share a link with the client.</p>
+
+  <div class="card">
+    <div class="tabs">
+      {% for link in links %}
+        <button class="tab-btn {% if loop.first %}active{% endif %}" data-key="{{ link.doc_type }}">
+          {{ link.label }}<span class="dot"></span>
+        </button>
+      {% endfor %}
+    </div>
+
+    {% for link in links %}
+      <div class="tab-panel {% if loop.first %}active{% endif %}" data-key="{{ link.doc_type }}">
+        {% include "_upload_form.html" %}
+        <div class="link-line">
+          <span>Shareable link: {{ link.url }}</span>
+          <button class="ghost" data-copy="{{ link.url }}">Copy</button>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <a href="/staff"><button class="ghost">← New search</button></a>
+{% endblock %}
