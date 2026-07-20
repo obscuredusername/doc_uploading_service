@@ -94,6 +94,38 @@ async def create_request_batch(
     return batch_id, requests
 
 
+async def list_requests_for_reference(
+    db: AsyncSession, *, tenant: Tenant, reference: str
+) -> tuple[list[DocumentRequest], dict]:
+    """Return (requests, {document_id: Document}) for a case reference."""
+    reqs = (
+        await db.execute(
+            select(DocumentRequest)
+            .where(
+                DocumentRequest.tenant_id == tenant.id,
+                DocumentRequest.reference == reference,
+            )
+            .order_by(DocumentRequest.created_at.desc())
+        )
+    ).scalars().all()
+
+    doc_ids = [r.document_id for r in reqs if r.document_id]
+    docs: dict = {}
+    if doc_ids:
+        rows = (
+            await db.execute(select(Document).where(Document.id.in_(doc_ids)))
+        ).scalars().all()
+        docs = {d.id: d for d in rows}
+    return list(reqs), docs
+
+
+def effective_status(req: DocumentRequest) -> str:
+    """Stored status, but a lapsed PENDING link reads as expired."""
+    if req.status == DocumentRequestStatus.PENDING and not req.is_live:
+        return DocumentRequestStatus.EXPIRED
+    return req.status
+
+
 async def get_by_token(
     db: AsyncSession, *, reference: str, doc_type: str, token: str
 ) -> DocumentRequest | None:
