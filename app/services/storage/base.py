@@ -39,3 +39,7 @@ class StorageBackend(ABC):
         For local storage this points at this service's public file route;
         for S3 it is a presigned URL. Callers store this on the Document row.
         """
+
+    def ensure_dir(self, key: str) -> None:
+        """Create an (empty) directory at ``key``. No-op for object stores."""
+        return None

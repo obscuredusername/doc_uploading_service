@@ -24,6 +24,9 @@ services:
       LOCAL_STORAGE_DIR: /data/uploads
       RATE_LIMIT_STORAGE_URI: memory://
       PORTAL_TENANT_NAME: ${PORTAL_TENANT_NAME:-}
+      # OCR.space key — interpolated from a server-side .env (kept out of repo).
+      # When set, uploads with ocr=true are OCR'd + a .json sidecar is stored.
+      OCR_API_KEY: ${OCR_API_KEY:-}
     command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
     ports:
       - "2311:8000"

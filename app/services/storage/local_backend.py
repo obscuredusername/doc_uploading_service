@@ -52,3 +52,6 @@ class LocalStorageBackend(StorageBackend):
     def public_url(self, key: str) -> str:
         base = settings.public_base_url.rstrip("/")
         return f"{base}/files/{key.lstrip('/')}"
+
+    def ensure_dir(self, key: str) -> None:
+        self._path_for(key).mkdir(parents=True, exist_ok=True)

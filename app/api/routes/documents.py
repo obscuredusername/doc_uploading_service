@@ -30,7 +30,7 @@ from app.schemas.document import (
     OcrTextResponse,
     OcrTriggerRequest,
 )
-from app.services import document_service
+from app.services import document_service, request_service
 from app.services.s3_service import (
     S3Service,
     build_ocr_json_key,
@@ -91,33 +91,47 @@ def _parse_uuid_or_400(value: str | None, field: str) -> uuid.UUID | None:
 @limiter.limit(UPLOAD_LIMIT)
 async def upload_document(
     request: Request,
-    response: Response,
     file: Annotated[UploadFile, File(...)],
     owner_ref: Annotated[str, Form(...)],
     document_type: Annotated[str, Form(...)],
     uploaded_by: Annotated[str, Form(...)],
     ocr: Annotated[bool, Form()] = False,
-    group_tag: Annotated[str | None, Form()] = None,
+    client_name: Annotated[str | None, Form()] = None,
     metadata: Annotated[str | None, Form()] = None,
     tenant: Tenant = Depends(get_current_tenant),
     db: AsyncSession = Depends(get_db),
 ):
+    """Upload a document for a case.
+
+    Stored on the local filesystem under <owner_ref>__<name>/<document_type>/.
+    When ``ocr=true`` the file is OCR'd synchronously and a JSON sidecar is
+    written next to it (and exposed via ``s3_url_ocr_json``).
+    """
     file_bytes = await file.read()
-    document, was_created = await document_service.create_or_update_document(
+    # Folder name for the case: explicit client_name > name from generated
+    # links for this reference > uploaded_by.
+    name = (
+        client_name
+        or await request_service.client_name_for_reference(
+            db, tenant=tenant, reference=owner_ref
+        )
+        or uploaded_by
+    )
+    document = await request_service.store_local_document(
         db,
-        tenant=tenant,
+        tenant_id=tenant.id,
+        reference=owner_ref,
+        client_name=name,
+        doc_type=document_type,
+        uploaded_by=uploaded_by,
         file_bytes=file_bytes,
         file_name=file.filename or "unnamed",
         mime_type=file.content_type or "application/octet-stream",
-        owner_ref=owner_ref,
-        document_type=document_type,
-        uploaded_by=uploaded_by,
-        group_tag=_parse_uuid_or_400(group_tag, "group_tag"),
+        run_ocr=ocr,
         metadata=_parse_metadata(metadata),
-        queue_ocr=ocr,
     )
-    if not was_created:
-        response.status_code = status.HTTP_200_OK
+    await db.commit()
+    await db.refresh(document)
     return _to_read(document)
 
 

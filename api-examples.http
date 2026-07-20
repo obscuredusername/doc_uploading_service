@@ -1,0 +1,102 @@
+### Document Portal — runnable request collection
+### Open in VS Code (REST Client extension) or JetBrains HTTP client.
+### Set the two variables below, then click "Send Request" above each block.
+
+@baseUrl = http://192.168.80.52:2311
+@apiKey = PASTE_YOUR_API_KEY_HERE
+@reference = 324991
+
+########################################################################
+# 1. COLLECTION PORTAL API
+########################################################################
+
+### 1.1 Generate all links for a case
+POST {{baseUrl}}/v1/document-requests
+Authorization: Bearer {{apiKey}}
+Content-Type: application/json
+
+{
+  "name": "Theresa Topp",
+  "reference": "{{reference}}"
+}
+
+### 1.2 List ALL links for a case
+GET {{baseUrl}}/v1/document-requests?reference={{reference}}
+Authorization: Bearer {{apiKey}}
+
+### 1.3 List only links that have an uploaded document
+GET {{baseUrl}}/v1/document-requests?reference={{reference}}&uploaded_only=true
+Authorization: Bearer {{apiKey}}
+
+### 1.4 List only submitted links
+GET {{baseUrl}}/v1/document-requests?reference={{reference}}&status=submitted
+Authorization: Bearer {{apiKey}}
+
+### 1.5 List only pending (still-open) links
+GET {{baseUrl}}/v1/document-requests?reference={{reference}}&status=pending
+Authorization: Bearer {{apiKey}}
+
+########################################################################
+# 2. DOCUMENTS API (read)
+########################################################################
+
+### 2.1 List documents for a case
+GET {{baseUrl}}/v1/documents?owner_ref={{reference}}
+Authorization: Bearer {{apiKey}}
+
+### 2.2 List documents filtered by type
+GET {{baseUrl}}/v1/documents?owner_ref={{reference}}&document_type=immigration_status
+Authorization: Bearer {{apiKey}}
+
+### 2.3 Get one document (replace the id)
+GET {{baseUrl}}/v1/documents/6f1e3a3d-cf08-4cf9-99c5-170dfc5cb42f
+Authorization: Bearer {{apiKey}}
+
+### 2.4 Stream / preview a document file (replace the id)
+GET {{baseUrl}}/v1/documents/6f1e3a3d-cf08-4cf9-99c5-170dfc5cb42f/file
+Authorization: Bearer {{apiKey}}
+
+### 2.5 Update a document (replace the id)
+PATCH {{baseUrl}}/v1/documents/6f1e3a3d-cf08-4cf9-99c5-170dfc5cb42f
+Authorization: Bearer {{apiKey}}
+Content-Type: application/json
+
+{
+  "document_type": "proof_of_address",
+  "metadata": { "note": "reclassified" }
+}
+
+### 2.6 OCR text status (replace the id)
+GET {{baseUrl}}/v1/documents/6f1e3a3d-cf08-4cf9-99c5-170dfc5cb42f/text
+Authorization: Bearer {{apiKey}}
+
+########################################################################
+# 3. CLIENT UPLOAD (public, no auth) — replace <token> from a generated link
+########################################################################
+
+### 3.1 Upload a file to a link (multipart)
+POST {{baseUrl}}/u/{{reference}}/immigration_status/<token>
+Content-Type: multipart/form-data; boundary=----portal
+
+------portal
+Content-Disposition: form-data; name="file"; filename="photo.png"
+Content-Type: image/png
+
+< ./photo.png
+------portal--
+
+### 3.2 Public inline preview of a stored file (replace the key)
+GET {{baseUrl}}/files/<tenant>/{{reference}}/<req>/original__photo.png
+
+########################################################################
+# 4. HEALTH / OPS (no auth)
+########################################################################
+
+### 4.1 Liveness
+GET {{baseUrl}}/health
+
+### 4.2 DB reachable
+GET {{baseUrl}}/health/db
+
+### 4.3 Readiness
+GET {{baseUrl}}/ready
