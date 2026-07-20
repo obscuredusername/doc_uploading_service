@@ -1,59 +1,54 @@
+# Deployment: app + its own Postgres container (temporary).
+#
+# Two services:
+#   app  -> the FastAPI portal, published on host port 2311
+#   db   -> Postgres for this app only (not published to the host)
+#
+# Persistence (survives container restarts/rebuilds):
+#   pg_data      -> database files
+#   uploads_data -> uploaded documents (LOCAL_STORAGE_DIR=/data/uploads)
+# Both are named volumes, stored on the host by Docker — not inside the
+# container layer — so data persists.
+#
+# No .env required: everything the portal needs is set inline below. The app
+# runs migrations on startup, then serves.
 services:
-  api:
+  app:
     build: .
-    container_name: upload_doc_api
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-    env_file: .env
+    image: doc_uploading_service:latest
+    container_name: doc_uploading_service
+    restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/upload_doc
-      RATE_LIMIT_STORAGE_URI: redis://redis:6379/3
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/doc_uploading
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:2311}
+      LOCAL_STORAGE_DIR: /data/uploads
+      RATE_LIMIT_STORAGE_URI: memory://
+      PORTAL_TENANT_NAME: ${PORTAL_TENANT_NAME:-}
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
     ports:
-      - "8000:8000"
+      - "2311:8000"
     volumes:
-      - ./:/app
+      - uploads_data:/data/uploads
     depends_on:
       db:
         condition: service_healthy
-      redis:
-        condition: service_started
-
-  worker:
-    build: .
-    container_name: upload_doc_worker
-    command: celery -A app.worker.celery_app worker --loglevel=info
-    env_file: .env
-    environment:
-      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/upload_doc
-    volumes:
-      - ./:/app
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_started
 
   db:
     image: postgres:16-alpine
-    container_name: upload_doc_db
+    container_name: doc_uploading_db
+    restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: upload_doc
-    ports:
-      - "5432:5432"
+      POSTGRES_DB: doc_uploading
     volumes:
       - pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d upload_doc"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d doc_uploading"]
       interval: 5s
       timeout: 5s
       retries: 10
 
-  redis:
-    image: redis:7-alpine
-    container_name: upload_doc_redis
-    ports:
-      - "6379:6379"
-
 volumes:
   pg_data:
+  uploads_data:

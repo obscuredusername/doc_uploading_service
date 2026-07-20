@@ -12,6 +12,7 @@ The upload form is a single partial reused both as a tab panel and on the
 standalone page — no duplicated frontend.
 """
 import logging
+import mimetypes
 
 from fastapi import APIRouter, Depends, File, Request, UploadFile
 from fastapi.responses import JSONResponse, Response, StreamingResponse
@@ -21,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_db
 from app.config import settings
 from app.core import doc_types
+from app.models.document import Document
 from app.models.tenant import Tenant
 from app.services import request_service
 from app.services.storage import get_storage_backend
@@ -143,7 +145,11 @@ async def upload_submit(
 
 @router.get("/files/{key:path}")
 async def serve_file(key: str, db: AsyncSession = Depends(get_db)):
-    """Public file serving for locally-stored uploads (spec decision #5)."""
+    """Public file serving for locally-stored uploads (spec decision #5).
+
+    Serves with the file's real content type and an *inline* disposition so
+    browsers preview PDFs/images in the tab instead of downloading them.
+    """
     if not settings.public_files:
         return Response(status_code=404)
 
@@ -152,4 +158,22 @@ async def serve_file(key: str, db: AsyncSession = Depends(get_db)):
         stream = backend.open_stream(key)
     except (FileNotFoundError, ValueError):
         return Response(status_code=404)
-    return StreamingResponse(stream, media_type="application/octet-stream")
+
+    # Prefer the exact mime type recorded on the Document row; fall back to
+    # guessing from the filename extension.
+    public_url = backend.public_url(key)
+    doc = (
+        await db.execute(select(Document).where(Document.s3_url == public_url))
+    ).scalar_one_or_none()
+    if doc is not None:
+        media_type = doc.mime_type
+        filename = doc.file_name
+    else:
+        media_type = mimetypes.guess_type(key)[0] or "application/octet-stream"
+        filename = key.rsplit("/", 1)[-1].split("original__")[-1]
+
+    return StreamingResponse(
+        stream,
+        media_type=media_type,
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
