@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}View Documents{% endblock %}
+{% block content %}
+  <h1>Uploaded Documents</h1>
+  <p class="sub">Enter a client reference to see their uploaded documents and preview them.</p>
+
+  <div class="card">
+    <form method="get" action="/staff/documents">
+      <div class="row">
+        <div>
+          <label>Reference number</label>
+          <input type="text" name="reference" value="{{ reference }}" placeholder="324991" required>
+        </div>
+        <div style="flex:0; display:flex; align-items:flex-end">
+          <button type="submit">View</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  {% if reference %}
+    <div class="card">
+      {% if results %}
+        <div style="overflow-x:auto">
+          <table style="width:100%; border-collapse:collapse; font-size:.9rem">
+            <thead>
+              <tr style="text-align:left; color:var(--muted)">
+                <th style="padding:8px 10px; border-bottom:1px solid var(--line)">Document type</th>
+                <th style="padding:8px 10px; border-bottom:1px solid var(--line)">File</th>
+                <th style="padding:8px 10px; border-bottom:1px solid var(--line)">Uploaded</th>
+                <th style="padding:8px 10px; border-bottom:1px solid var(--line)"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for d in results %}
+                <tr>
+                  <td style="padding:8px 10px; border-bottom:1px solid var(--line)">{{ d.label }}</td>
+                  <td style="padding:8px 10px; border-bottom:1px solid var(--line); word-break:break-all">{{ d.file_name }}</td>
+                  <td style="padding:8px 10px; border-bottom:1px solid var(--line); color:var(--muted)">{{ d.uploaded_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                  <td style="padding:8px 10px; border-bottom:1px solid var(--line)">
+                    <a href="{{ d.url }}" target="_blank"><button class="ghost">Preview ↗</button></a>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="sub">No documents uploaded yet for reference {{ reference }}.</p>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  <a href="/staff"><button class="ghost">← Generate links</button></a>
+{% endblock %}

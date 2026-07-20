@@ -80,6 +80,44 @@ async def staff_generate(
     )
 
 
+@router.get("/staff/documents")
+async def staff_documents(
+    request: Request,
+    reference: str | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """List a client's uploaded documents with inline preview links.
+
+    Reads the stored (local) URL directly — no S3, no presigning.
+    """
+    results: list[dict] = []
+    ref = (reference or "").strip()
+    if ref:
+        tenant = await request_service.get_portal_tenant(db)
+        rows = (
+            await db.execute(
+                select(Document)
+                .where(Document.tenant_id == tenant.id, Document.owner_ref == ref)
+                .order_by(Document.created_at.desc())
+            )
+        ).scalars().all()
+        results = [
+            {
+                "label": doc_types.label_for(r.document_type),
+                "doc_type": r.document_type,
+                "file_name": r.file_name,
+                "mime_type": r.mime_type,
+                "url": r.s3_url,
+                "uploaded_at": r.updated_at,
+            }
+            for r in rows
+        ]
+    return templates.TemplateResponse(
+        "documents.html",
+        {"request": request, "reference": ref, "results": results},
+    )
+
+
 @router.get("/u/{reference}/{doc_type}/{token}")
 async def upload_page(
     request: Request,
