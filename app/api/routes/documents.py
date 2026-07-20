@@ -91,6 +91,7 @@ def _parse_uuid_or_400(value: str | None, field: str) -> uuid.UUID | None:
 @limiter.limit(UPLOAD_LIMIT)
 async def upload_document(
     request: Request,
+    response: Response,
     file: Annotated[UploadFile, File(...)],
     owner_ref: Annotated[str, Form(...)],
     document_type: Annotated[str, Form(...)],
