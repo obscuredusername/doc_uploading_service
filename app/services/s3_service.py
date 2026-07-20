@@ -120,12 +120,20 @@ def fresh_ocr_json_url_for(document) -> str | None:
     )
 
 
+def _is_local_url(url: str | None) -> bool:
+    """Local-storage docs carry a servable /files/... URL, not an S3 key."""
+    return bool(url) and "/files/" in url
+
+
 def refresh_document_urls(document) -> None:
     """Replace the document's stored URL fields with fresh presigned values.
 
-    Mutates in-place. Call before serializing to a DocumentRead or building
-    the notifier payload — the stored value in the DB is incidental and
-    likely stale.
+    Mutates in-place. Only applies to S3-backed documents: if no S3 bucket is
+    configured, or the document is stored locally (its URL already points at
+    /files/...), the stored value is kept as-is. Call before serializing to a
+    DocumentRead or building the notifier payload.
     """
+    if not settings.aws_s3_bucket_name or _is_local_url(document.s3_url):
+        return
     document.s3_url = fresh_s3_url_for(document)
     document.s3_url_ocr_json = fresh_ocr_json_url_for(document)

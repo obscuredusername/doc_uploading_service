@@ -19,6 +19,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_tenant, get_db
+from app.config import settings
 from app.core.rate_limit import UPLOAD_LIMIT, limiter
 from app.models.document import Document, OcrStatus
 from app.models.tenant import Tenant
@@ -43,9 +44,13 @@ PATCHABLE_FIELDS = {"document_type", "metadata", "uploaded_by"}
 
 
 def _to_read(document) -> DocumentRead:
-    """Always serialize through fresh presigned URLs — never the stored value."""
+    """Serialize a Document, refreshing S3 URLs when applicable.
+
+    For S3-backed docs this swaps in a fresh presigned URL; for local-storage
+    docs the stored /files/... URL is kept (see refresh_document_urls).
+    """
     refresh_document_urls(document)
-    return _to_read(document)
+    return DocumentRead.model_validate(document)
 
 
 def _parse_metadata(raw: str | None) -> dict[str, Any]:
@@ -267,12 +272,29 @@ async def stream_document_file(
     tenant: Tenant = Depends(get_current_tenant),
     db: AsyncSession = Depends(get_db),
 ):
-    """Auth-proxy file stream (spec §15.1 decision)."""
+    """Auth-proxy file stream. Works for both S3 and local-storage documents."""
     document = await document_service.get_document_for_tenant(db, tenant=tenant, doc_id=doc_id)
-    key = build_original_key(document.tenant_id, document.owner_ref, document.id, document.file_name)
-    obj = S3Service().stream_object(key)
+
+    if not settings.aws_s3_bucket_name or "/files/" in (document.s3_url or ""):
+        # Local storage: derive the on-disk key from the stored /files/ URL.
+        from app.services.storage import get_storage_backend
+
+        local_key = (
+            document.s3_url.split("/files/", 1)[-1]
+            if document.s3_url and "/files/" in document.s3_url
+            else build_original_key(
+                document.tenant_id, document.owner_ref, document.id, document.file_name
+            )
+        )
+        body_iter = get_storage_backend("local").open_stream(local_key)
+    else:
+        key = build_original_key(
+            document.tenant_id, document.owner_ref, document.id, document.file_name
+        )
+        body_iter = S3Service().stream_object(key)["Body"].iter_chunks()
+
     return StreamingResponse(
-        obj["Body"].iter_chunks(),
+        body_iter,
         media_type=document.mime_type,
         headers={"Content-Disposition": f'inline; filename="{document.file_name}"'},
     )
